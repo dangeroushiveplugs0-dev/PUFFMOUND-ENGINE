@@ -55,7 +55,7 @@ GLuint compile_shader(GLenum type, const char* source) {
         std::array<GLchar, 1024> log{};
         GLsizei length = 0;
         glGetShaderInfoLog(shader, static_cast<GLsizei>(log.size()), &length, log.data());
-        std::fprintf(stderr, "Spank3d: GLSL shader compilation failed: %.*s\\n",
+        std::fprintf(stderr, "Spank3d: GLSL shader compilation failed: %.*s\n",
                      static_cast<int>(length), log.data());
         glDeleteShader(shader);
         return 0;
@@ -93,7 +93,7 @@ GLuint create_triangle_program() {
         std::array<GLchar, 1024> log{};
         GLsizei length = 0;
         glGetProgramInfoLog(program, static_cast<GLsizei>(log.size()), &length, log.data());
-        std::fprintf(stderr, "Spank3d: GLSL program link failed: %.*s\\n",
+        std::fprintf(stderr, "Spank3d: GLSL program link failed: %.*s\n",
                      static_cast<int>(length), log.data());
         glDeleteProgram(program);
         return 0;
