@@ -243,11 +243,14 @@ void GlesRenderer::draw_debug_cube(float angle_radians) {
 
 void GlesRenderer::camera_orbit(float delta_x, float delta_y) noexcept {
     if (!std::isfinite(delta_x) || !std::isfinite(delta_y)) return;
-    // Keep yaw bounded so long sessions cannot accumulate precision loss.
-    camera_yaw_ = std::remainder(camera_yaw_ + delta_x * 0.018F, 6.28318530718F);
-    // Prevent pole crossing / upside-down flips while retaining a broad orbit range.
+    const float yaw_delta = delta_x * 0.018F;
+    const float pitch_delta = delta_y * 0.018F;
+    // Apply touch movement immediately, then carry a small amount of momentum.
+    camera_yaw_ = std::remainder(camera_yaw_ + yaw_delta, 6.28318530718F);
     constexpr float limit = 1.48F;
-    camera_pitch_ = std::clamp(camera_pitch_ + delta_y * 0.018F, -limit, limit);
+    camera_pitch_ = std::clamp(camera_pitch_ + pitch_delta, -limit, limit);
+    orbit_velocity_yaw_ = std::clamp(yaw_delta * 4.0F, -2.5F, 2.5F);
+    orbit_velocity_pitch_ = std::clamp(pitch_delta * 4.0F, -2.5F, 2.5F);
 }
 
 void GlesRenderer::camera_pan(float delta_x, float delta_y) noexcept {
@@ -255,9 +258,37 @@ void GlesRenderer::camera_pan(float delta_x, float delta_y) noexcept {
     const float scale = camera_distance_ * 3.2F;
     const float c = std::cos(camera_yaw_);
     const float s = std::sin(camera_yaw_);
-    camera_target_x_ -= (delta_x * c) * scale;
-    camera_target_x_ += (delta_y * s) * scale;
-    camera_target_y_ += delta_y * scale;
+    const float pan_x = -(delta_x * c) * scale + (delta_y * s) * scale;
+    const float pan_y = delta_y * scale;
+    camera_target_x_ += pan_x;
+    camera_target_y_ += pan_y;
+    pan_velocity_x_ = std::clamp(pan_x * 4.0F, -18.0F, 18.0F);
+    pan_velocity_y_ = std::clamp(pan_y * 4.0F, -18.0F, 18.0F);
+}
+
+void GlesRenderer::camera_update(float delta_seconds) noexcept {
+    if (!std::isfinite(delta_seconds) || delta_seconds <= 0.0F) return;
+    const float dt = std::min(delta_seconds, 0.05F);
+    // Exponential damping is frame-rate independent; 9/s gives a short,
+    // controlled glide rather than a long, floaty camera tail.
+    constexpr float damping = 9.0F;
+    camera_yaw_ = std::remainder(camera_yaw_ + orbit_velocity_yaw_ * dt, 6.28318530718F);
+    constexpr float limit = 1.48F;
+    camera_pitch_ = std::clamp(camera_pitch_ + orbit_velocity_pitch_ * dt, -limit, limit);
+    camera_target_x_ += pan_velocity_x_ * dt;
+    camera_target_y_ += pan_velocity_y_ * dt;
+
+    const float decay = std::exp(-damping * dt);
+    orbit_velocity_yaw_ *= decay;
+    orbit_velocity_pitch_ *= decay;
+    pan_velocity_x_ *= decay;
+    pan_velocity_y_ *= decay;
+
+    constexpr float stop_threshold = 0.002F;
+    if (std::abs(orbit_velocity_yaw_) < stop_threshold) orbit_velocity_yaw_ = 0.0F;
+    if (std::abs(orbit_velocity_pitch_) < stop_threshold) orbit_velocity_pitch_ = 0.0F;
+    if (std::abs(pan_velocity_x_) < stop_threshold) pan_velocity_x_ = 0.0F;
+    if (std::abs(pan_velocity_y_) < stop_threshold) pan_velocity_y_ = 0.0F;
 }
 
 void GlesRenderer::camera_zoom(float scale_factor) noexcept {
@@ -275,6 +306,8 @@ void GlesRenderer::camera_reset() noexcept {
     camera_distance_ = 4.8F;
     camera_target_x_ = 0.0F;
     camera_target_y_ = 0.0F;
+    orbit_velocity_yaw_ = orbit_velocity_pitch_ = 0.0F;
+    pan_velocity_x_ = pan_velocity_y_ = 0.0F;
     orthographic_ = false;
 }
 
