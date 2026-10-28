@@ -33,8 +33,8 @@ private:
     std::uint32_t cube_vbo_{0};
     int mvp_location_{-1};
     bool initialized_{false};
-    float camera_yaw_{0.55F};
-    float camera_pitch_{0.32F};
+    float camera_yaw_{0.0F};
+    float camera_pitch_{0.0F};
     float camera_distance_{4.8F};
     float camera_target_x_{0.0F};
     float camera_target_y_{0.0F};
