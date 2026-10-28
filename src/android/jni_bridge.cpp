@@ -6,10 +6,12 @@
 
 namespace {
 spank3d::render::GlesRenderer g_renderer;
+float g_previous_elapsed_seconds = -1.0F;
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_spank3d_MainActivity_nativeInitialize(JNIEnv*, jobject) {
+    g_previous_elapsed_seconds = -1.0F;
     return g_renderer.initialize() ? JNI_TRUE : JNI_FALSE;
 }
 
@@ -22,6 +24,10 @@ Java_com_spank3d_MainActivity_nativeResize(JNIEnv*, jobject, jint width, jint he
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_spank3d_MainActivity_nativeDraw(JNIEnv*, jobject, jfloat elapsed_seconds) {
+    if (g_previous_elapsed_seconds >= 0.0F && elapsed_seconds >= g_previous_elapsed_seconds) {
+        g_renderer.camera_update(elapsed_seconds - g_previous_elapsed_seconds);
+    }
+    g_previous_elapsed_seconds = elapsed_seconds;
     g_renderer.begin_frame({0.035F, 0.045F, 0.075F, 1.0F});
     g_renderer.draw_debug_cube(0.0F);
     g_renderer.end_frame();
