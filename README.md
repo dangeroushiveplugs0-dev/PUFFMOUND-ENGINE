@@ -15,21 +15,34 @@
 - **Environment maps and reflection probes** provide environment reflections and image-based lighting (IBL) for PBR materials. Probe placement, blending, and update cost must be considered for mobile GPUs.
 - **Dynamic direct lighting is a separate system.** Scene lights contribute direct illumination; probes/environment maps provide environment lighting and reflections. MatCap remains a viewport-shading mode rather than pretending to be physically lit PBR.
 
-## First milestone: rendering foundation
-1. Build and test the portable C++ core.
-2. Establish renderer/resource interfaces and an OpenGL ES backend for Android.
-3. Render a triangle, then a 3D mesh with camera transforms and depth testing.
-4. Add the MatCap shader and selectable MatCap presets as the first viewport material mode.
-5. Add the PBR shader/material inputs, direct dynamic lights, and environment-map/reflection-probe IBL incrementally.
-6. Add Android app integration and repeatable CI artifacts after the native render path is validated.
+## Current milestone: first draw call
+The Android OpenGL ES backend now has an end-to-end debug-triangle path:
+- Compile and link a GLSL ES 3.00 vertex/fragment shader program.
+- Upload interleaved position/color vertex data into a VBO and configure a VAO.
+- Draw the triangle through `GlesRenderer::draw_debug_triangle()`.
+- Call `GlesRenderer::shutdown()` while the EGL context used to create the resources is still current.
 
-The current branch is the **foundation**, not a feature-complete engine or a working visual demo yet. The GLES backend is compiled only in Android builds; portable core tests run in ordinary CI.
+The host application is responsible for creating/making current the EGL context, calling `initialize()`, setting the surface size through `resize()`, and performing the EGL buffer swap after `end_frame()`. This repository still does **not** include the Android host or a packaged APK, so a visible on-device demo is not claimed yet.
 
-## Build core
+## Next rendering milestones
+1. Add an Android host/surface lifecycle and verify the triangle on a real device.
+2. Add camera transforms and depth-tested 3D mesh drawing.
+3. Implement MatCap sampling as the default viewport material mode.
+4. Add PBR material inputs, direct dynamic lights, and environment-map/reflection-probe IBL incrementally.
+
+## Build core and test
+Portable core:
 ```sh
 cmake -S . -B build -DSPANK3D_BUILD_TESTS=ON
 cmake --build build
 ctest --test-dir build --output-on-failure
+```
+
+Compile-check the GLES backend on a Linux machine with EGL/GLES development libraries installed:
+```sh
+cmake -S . -B build-gles -DSPANK3D_BUILD_TESTS=ON -DSPANK3D_BUILD_GLES_BACKEND=ON
+cmake --build build-gles
+ctest --test-dir build-gles --output-on-failure
 ```
 
 ## License
