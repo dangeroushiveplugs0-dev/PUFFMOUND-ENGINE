@@ -3,7 +3,6 @@ package com.spank3d
 import android.app.Activity
 import android.opengl.GLSurfaceView
 import android.os.Bundle
-import android.view.View
 import android.widget.FrameLayout
 import android.widget.TextView
 import android.graphics.Color
@@ -18,7 +17,8 @@ class MainActivity : Activity() {
 
     external fun nativeInitialize(): Boolean
     external fun nativeResize(width: Int, height: Int)
-    external fun nativeDraw()
+    external fun nativeDraw(elapsedSeconds: Float)
+    private var startTimeNanos: Long = 0L
 
     companion object {
         init {
@@ -35,10 +35,11 @@ class MainActivity : Activity() {
             preserveEGLContextOnPause = false
             setRenderer(object : Renderer {
                 override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
+                    startTimeNanos = System.nanoTime()
                     val initialized = nativeInitialize()
                     runOnUiThread {
                         status.text = if (initialized) {
-                            "Spank3d • OpenGL ES 3 • Triangle test"
+                            "Spank3d • OpenGL ES 3 • 3D cube"
                         } else {
                             "Spank3d • Renderer initialization failed"
                         }
@@ -50,7 +51,8 @@ class MainActivity : Activity() {
                 }
 
                 override fun onDrawFrame(gl: GL10?) {
-                    nativeDraw()
+                    val elapsedSeconds = ((System.nanoTime() - startTimeNanos).coerceAtLeast(0L)) / 1_000_000_000.0
+                    nativeDraw(elapsedSeconds.toFloat())
                 }
             })
             renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
