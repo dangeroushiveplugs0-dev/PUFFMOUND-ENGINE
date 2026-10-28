@@ -4,6 +4,8 @@ project(Spank3d VERSION 0.1.0 LANGUAGES CXX)
 option(SPANK3D_BUILD_TESTS "Build portable core tests" ON)
 option(SPANK3D_BUILD_GLES_BACKEND "Build the OpenGL ES backend on a host with GLES/EGL development libraries" OFF)
 
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
 add_library(spank3d_core
     src/math/vec3.cpp
 )
@@ -12,12 +14,19 @@ target_compile_features(spank3d_core PUBLIC cxx_std_20)
 set_target_properties(spank3d_core PROPERTIES CXX_EXTENSIONS OFF)
 
 if(ANDROID)
-    add_library(spank3d_gles
+    add_library(spank3d_gles STATIC
         src/render/gles_renderer.cpp
     )
     target_include_directories(spank3d_gles PUBLIC include)
     target_link_libraries(spank3d_gles PUBLIC spank3d_core GLESv3 EGL)
     target_compile_features(spank3d_gles PUBLIC cxx_std_20)
+
+    add_library(spank3d_android SHARED
+        src/android/jni_bridge.cpp
+    )
+    target_include_directories(spank3d_android PRIVATE include)
+    target_link_libraries(spank3d_android PRIVATE spank3d_gles android log)
+    target_compile_features(spank3d_android PRIVATE cxx_std_20)
 elseif(SPANK3D_BUILD_GLES_BACKEND)
     find_path(SPANK3D_GLES_INCLUDE_DIR GLES3/gl3.h REQUIRED)
     find_library(SPANK3D_GLES_LIBRARY NAMES GLESv2 REQUIRED)
