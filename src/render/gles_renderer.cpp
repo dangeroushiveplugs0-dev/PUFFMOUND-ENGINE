@@ -270,8 +270,8 @@ void GlesRenderer::camera_toggle_projection() noexcept {
 }
 
 void GlesRenderer::camera_reset() noexcept {
-    camera_yaw_ = 0.55F;
-    camera_pitch_ = 0.32F;
+    camera_yaw_ = 0.0F;
+    camera_pitch_ = 0.0F;
     camera_distance_ = 4.8F;
     camera_target_x_ = 0.0F;
     camera_target_y_ = 0.0F;
