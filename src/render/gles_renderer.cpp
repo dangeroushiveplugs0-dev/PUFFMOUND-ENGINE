@@ -242,13 +242,13 @@ void GlesRenderer::draw_debug_cube(float angle_radians) {
 }
 
 void GlesRenderer::camera_orbit(float delta_x, float delta_y) noexcept {
-    camera_yaw_ += delta_x * 0.008F;
+    camera_yaw_ += delta_x * 0.018F;
     constexpr float limit = 1.48F;
-    camera_pitch_ = std::clamp(camera_pitch_ + delta_y * 0.008F, -limit, limit);
+    camera_pitch_ = std::clamp(camera_pitch_ + delta_y * 0.018F, -limit, limit);
 }
 
 void GlesRenderer::camera_pan(float delta_x, float delta_y) noexcept {
-    const float scale = camera_distance_ * 1.5F;
+    const float scale = camera_distance_ * 3.2F;
     const float c = std::cos(camera_yaw_);
     const float s = std::sin(camera_yaw_);
     camera_target_x_ -= (delta_x * c) * scale;
@@ -258,7 +258,7 @@ void GlesRenderer::camera_pan(float delta_x, float delta_y) noexcept {
 
 void GlesRenderer::camera_zoom(float scale_factor) noexcept {
     if (!std::isfinite(scale_factor) || scale_factor <= 0.0F) return;
-    camera_distance_ = std::clamp(camera_distance_ / scale_factor, 2.4F, 18.0F);
+    camera_distance_ = std::clamp(camera_distance_ / std::pow(scale_factor, 1.25F), 2.0F, 24.0F);
 }
 
 void GlesRenderer::camera_toggle_projection() noexcept {
