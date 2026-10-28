@@ -15,11 +15,13 @@
 - **Environment maps and reflection probes** provide environment reflections and image-based lighting (IBL) for PBR materials. Probe placement, blending, and update cost must be considered for mobile GPUs.
 - **Dynamic direct lighting is a separate system.** Scene lights contribute direct illumination; probes/environment maps provide environment lighting and reflections. MatCap remains a viewport-shading mode rather than pretending to be physically lit PBR.
 
-## Current milestone: animated 3D cube preview
+## Current milestone: touch-controlled modeling camera
 The Android host uses `GLSurfaceView` with an OpenGL ES 3 context and calls the native C++ renderer through JNI. The renderer now:
 - Compiles and links GLSL ES 3.00 shaders with an MVP matrix uniform.
 - Uploads a 36-vertex cube mesh into a VBO and configures a VAO.
-- Applies model rotation, a perspective projection, a camera translation, and depth testing.
+- Uses a controllable orbit camera with clamped pitch and distance, pan, pinch zoom, and perspective/orthographic projection modes.
+- Keeps a reset-camera action available and uses the animated cube as a repeatable framing target.
+- Applies model rotation and depth testing.
 - Animates the cube using elapsed time passed from the Android host.
 - Reports shader compilation/link errors to stderr.
 - Expects the host to create and own the EGL context and perform the buffer swap.
@@ -27,9 +29,9 @@ The Android host uses `GLSurfaceView` with an OpenGL ES 3 context and calls the 
 The APK builds in GitHub Actions and is uploaded as the `spank3d-debug-apk` artifact. This is a rendering test app, not yet a 3D editor. The cube change needs to pass CI and be checked on the phone before it is considered verified.
 
 ## Next rendering milestones
-1. Verify the animated cube on a real Android device and harden lifecycle/context recreation.
+1. Verify orbit, pan, pinch zoom, projection toggle, and reset on a real Android device; then harden lifecycle/context recreation.
 2. Replace per-face debug colors with the default MatCap viewport material.
-3. Add reusable mesh, camera, and material interfaces instead of keeping the demo mesh inside the GLES backend.
+3. Extract reusable mesh, camera, and material interfaces instead of keeping the demo mesh inside the GLES backend.
 4. Add PBR material inputs, dynamic direct lights, and environment-map/reflection-probe IBL incrementally.
 
 ## Build core and test
