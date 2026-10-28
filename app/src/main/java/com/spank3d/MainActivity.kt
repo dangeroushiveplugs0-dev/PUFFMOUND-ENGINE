@@ -94,7 +94,7 @@ class MainActivity : Activity() {
                             val panX = (midX - previousMidX) / height.coerceAtLeast(1)
                             val panY = (midY - previousMidY) / height.coerceAtLeast(1)
                             if (panX != 0f || panY != 0f) {
-                                queueEvent { nativeCameraPan(panX, panY) }
+                                queueEvent { nativeCameraPan(panX * 2.2f, panY * 2.2f) }
                             }
                             previousPinchDistance = distance
                             previousMidX = midX
@@ -102,7 +102,7 @@ class MainActivity : Activity() {
                         } else {
                             val dx = (event.x - previousX) / width.coerceAtLeast(1)
                             val dy = (event.y - previousY) / height.coerceAtLeast(1)
-                            queueEvent { nativeCameraOrbit(dx * 120f, dy * 120f) }
+                            queueEvent { nativeCameraOrbit(dx * 240f, dy * 240f) }
                         }
                         previousX = event.x
                         previousY = event.y
