@@ -148,19 +148,25 @@ class MainActivity : Activity() {
                                 squaredDistanceSum += dx * dx + dy * dy
                             }
                             val spread = kotlin.math.sqrt(squaredDistanceSum / count)
-                            val panX = (centroidX - previousCentroidX) / width.coerceAtLeast(1)
-                            val panY = (centroidY - previousCentroidY) / height.coerceAtLeast(1)
+                            val moveX = (centroidX - previousCentroidX) / width.coerceAtLeast(1)
+                            val moveY = (centroidY - previousCentroidY) / height.coerceAtLeast(1)
                             val scale = if (previousSpread > 1f && spread > 1f) {
                                 spread / previousSpread
                             } else {
                                 1f
                             }
-                            if (panX != 0f || panY != 0f || scale != 1f) {
+                            if (moveX != 0f || moveY != 0f || scale != 1f) {
                                 queueEvent {
-                                    if (scale != 1f) nativeCameraZoom(scale)
-                                    if (panX != 0f || panY != 0f) {
-                                        nativeCameraPan(panX * 2.2f, panY * 2.2f)
+                                    // Two fingers orbit vertically/horizontally and pinch-zoom.
+                                    // Three or more fingers pan and pinch-zoom.
+                                    if (count == 2) {
+                                        if (moveX != 0f || moveY != 0f) {
+                                            nativeCameraOrbit(moveX * 240f, moveY * 240f)
+                                        }
+                                    } else if (moveX != 0f || moveY != 0f) {
+                                        nativeCameraPan(moveX * 2.2f, moveY * 2.2f)
                                     }
+                                    if (scale != 1f) nativeCameraZoom(scale)
                                 }
                             }
                             previousCentroidX = centroidX
