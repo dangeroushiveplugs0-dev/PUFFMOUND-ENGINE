@@ -4,6 +4,7 @@
 
 #include <array>
 #include <cmath>
+#include <algorithm>
 #include <cstddef>
 #include <cstdio>
 
@@ -101,6 +102,16 @@ Mat4 perspective(float fov, float aspect, float near_plane, float far_plane) {
     m[10] = (far_plane + near_plane) / (near_plane - far_plane);
     m[11] = -1.0F;
     m[14] = (2.0F * far_plane * near_plane) / (near_plane - far_plane);
+    return m;
+}
+
+Mat4 orthographic(float half_height, float aspect, float near_plane, float far_plane) {
+    const float half_width = half_height * aspect;
+    Mat4 m = identity();
+    m[0] = 1.0F / half_width;
+    m[5] = 1.0F / half_height;
+    m[10] = -2.0F / (far_plane - near_plane);
+    m[14] = -(far_plane + near_plane) / (far_plane - near_plane);
     return m;
 }
 
@@ -211,9 +222,15 @@ void GlesRenderer::begin_frame(const ClearColor& color) {
 void GlesRenderer::draw_debug_cube(float angle_radians) {
     if (!initialized_ || viewport_.height == 0 || viewport_.width == 0) return;
     const Mat4 model = multiply(rotation_y(angle_radians), rotation_x(angle_radians * 0.63F));
-    const Mat4 view = translation(0.0F, 0.0F, -4.2F);
+    const Mat4 view = multiply(
+        translation(0.0F, 0.0F, -camera_distance_),
+        multiply(rotation_x(-camera_pitch_),
+                 multiply(rotation_y(-camera_yaw_),
+                          translation(-camera_target_x_, -camera_target_y_, 0.0F))));
     const float aspect = static_cast<float>(viewport_.width) / static_cast<float>(viewport_.height);
-    const Mat4 projection = perspective(0.82F, aspect, 0.1F, 100.0F);
+    const Mat4 projection = orthographic_
+        ? orthographic(2.8F, aspect, 0.1F, 100.0F)
+        : perspective(0.82F, aspect, 0.1F, 100.0F);
     const Mat4 mvp = multiply(projection, multiply(view, model));
 
     glUseProgram(cube_program_);
@@ -222,6 +239,39 @@ void GlesRenderer::draw_debug_cube(float angle_radians) {
     glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(kCubeVertices.size()));
     glBindVertexArray(0);
     glUseProgram(0);
+}
+
+void GlesRenderer::camera_orbit(float delta_x, float delta_y) noexcept {
+    camera_yaw_ += delta_x * 0.008F;
+    constexpr float limit = 1.48F;
+    camera_pitch_ = std::clamp(camera_pitch_ + delta_y * 0.008F, -limit, limit);
+}
+
+void GlesRenderer::camera_pan(float delta_x, float delta_y) noexcept {
+    const float scale = camera_distance_ * 0.0022F;
+    const float c = std::cos(camera_yaw_);
+    const float s = std::sin(camera_yaw_);
+    camera_target_x_ -= (delta_x * c) * scale;
+    camera_target_x_ += (delta_y * s) * scale;
+    camera_target_y_ += delta_y * scale;
+}
+
+void GlesRenderer::camera_zoom(float scale_factor) noexcept {
+    if (!std::isfinite(scale_factor) || scale_factor <= 0.0F) return;
+    camera_distance_ = std::clamp(camera_distance_ / scale_factor, 2.4F, 18.0F);
+}
+
+void GlesRenderer::camera_toggle_projection() noexcept {
+    orthographic_ = !orthographic_;
+}
+
+void GlesRenderer::camera_reset() noexcept {
+    camera_yaw_ = 0.55F;
+    camera_pitch_ = 0.32F;
+    camera_distance_ = 4.8F;
+    camera_target_x_ = 0.0F;
+    camera_target_y_ = 0.0F;
+    orthographic_ = false;
 }
 
 void GlesRenderer::end_frame() {}
