@@ -242,12 +242,16 @@ void GlesRenderer::draw_debug_cube(float angle_radians) {
 }
 
 void GlesRenderer::camera_orbit(float delta_x, float delta_y) noexcept {
-    camera_yaw_ += delta_x * 0.018F;
+    if (!std::isfinite(delta_x) || !std::isfinite(delta_y)) return;
+    // Keep yaw bounded so long sessions cannot accumulate precision loss.
+    camera_yaw_ = std::remainder(camera_yaw_ + delta_x * 0.018F, 6.28318530718F);
+    // Prevent pole crossing / upside-down flips while retaining a broad orbit range.
     constexpr float limit = 1.48F;
     camera_pitch_ = std::clamp(camera_pitch_ + delta_y * 0.018F, -limit, limit);
 }
 
 void GlesRenderer::camera_pan(float delta_x, float delta_y) noexcept {
+    if (!std::isfinite(delta_x) || !std::isfinite(delta_y)) return;
     const float scale = camera_distance_ * 3.2F;
     const float c = std::cos(camera_yaw_);
     const float s = std::sin(camera_yaw_);
