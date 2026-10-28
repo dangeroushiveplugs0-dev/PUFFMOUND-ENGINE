@@ -21,8 +21,8 @@ Java_com_spank3d_MainActivity_nativeResize(JNIEnv*, jobject, jint width, jint he
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_spank3d_MainActivity_nativeDraw(JNIEnv*, jobject) {
+Java_com_spank3d_MainActivity_nativeDraw(JNIEnv*, jobject, jfloat elapsed_seconds) {
     g_renderer.begin_frame({0.035F, 0.045F, 0.075F, 1.0F});
-    g_renderer.draw_debug_triangle();
+    g_renderer.draw_debug_cube(elapsed_seconds * 0.8F);
     g_renderer.end_frame();
 }
