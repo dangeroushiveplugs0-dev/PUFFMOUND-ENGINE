@@ -7,6 +7,10 @@ import android.widget.FrameLayout
 import android.widget.TextView
 import android.graphics.Color
 import android.view.Gravity
+import android.view.MotionEvent
+import android.widget.Button
+import android.widget.LinearLayout
+import kotlin.math.hypot
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 import android.opengl.GLSurfaceView.Renderer
@@ -18,6 +22,11 @@ class MainActivity : Activity() {
     external fun nativeInitialize(): Boolean
     external fun nativeResize(width: Int, height: Int)
     external fun nativeDraw(elapsedSeconds: Float)
+    external fun nativeCameraOrbit(dx: Float, dy: Float)
+    external fun nativeCameraPan(dx: Float, dy: Float)
+    external fun nativeCameraZoom(scale: Float)
+    external fun nativeCameraToggleProjection()
+    external fun nativeCameraReset()
     private var startTimeNanos: Long = 0L
 
     companion object {
@@ -56,6 +65,62 @@ class MainActivity : Activity() {
                 }
             })
             renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
+            var previousX = 0f
+            var previousY = 0f
+            var previousPinchDistance = 0f
+            var previousMidX = 0f
+            var previousMidY = 0f
+            setOnTouchListener { _, event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
+                        previousX = event.x
+                        previousY = event.y
+                        if (event.pointerCount >= 2) {
+                            previousPinchDistance = pointerDistance(event)
+                            previousMidX = (event.getX(0) + event.getX(1)) * 0.5f
+                            previousMidY = (event.getY(0) + event.getY(1)) * 0.5f
+                        }
+                        true
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        if (event.pointerCount >= 2) {
+                            val distance = pointerDistance(event)
+                            val midX = (event.getX(0) + event.getX(1)) * 0.5f
+                            val midY = (event.getY(0) + event.getY(1)) * 0.5f
+                            if (previousPinchDistance > 0f && distance > 0f) {
+                                val scale = distance / previousPinchDistance
+                                queueEvent { nativeCameraZoom(scale) }
+                            }
+                            val panX = (midX - previousMidX) / height.coerceAtLeast(1)
+                            val panY = (midY - previousMidY) / height.coerceAtLeast(1)
+                            if (panX != 0f || panY != 0f) {
+                                queueEvent { nativeCameraPan(panX, panY) }
+                            }
+                            previousPinchDistance = distance
+                            previousMidX = midX
+                            previousMidY = midY
+                        } else {
+                            val dx = (event.x - previousX) / width.coerceAtLeast(1)
+                            val dy = (event.y - previousY) / height.coerceAtLeast(1)
+                            queueEvent { nativeCameraOrbit(dx * 120f, dy * 120f) }
+                        }
+                        previousX = event.x
+                        previousY = event.y
+                        true
+                    }
+                    MotionEvent.ACTION_POINTER_UP -> {
+                        previousPinchDistance = 0f
+                        previousX = event.x
+                        previousY = event.y
+                        true
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        previousPinchDistance = 0f
+                        true
+                    }
+                    else -> true
+                }
+            }
         }
         root.addView(
             surface,
@@ -82,7 +147,38 @@ class MainActivity : Activity() {
         statusParams.topMargin = 16
         root.addView(status, statusParams)
 
+        val controls = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        val projectionButton = Button(this).apply {
+            text = "Perspective / Ortho"
+            isAllCaps = false
+            setOnClickListener { surface.queueEvent { nativeCameraToggleProjection() } }
+        }
+        val resetButton = Button(this).apply {
+            text = "Reset camera"
+            isAllCaps = false
+            setOnClickListener { surface.queueEvent { nativeCameraReset() } }
+        }
+        controls.addView(projectionButton)
+        controls.addView(resetButton)
+        val controlsParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+        )
+        controlsParams.bottomMargin = 18
+        root.addView(controls, controlsParams)
+
         setContentView(root)
+    }
+
+    private fun pointerDistance(event: MotionEvent): Float {
+        if (event.pointerCount < 2) return 0f
+        val dx = event.getX(0) - event.getX(1)
+        val dy = event.getY(0) - event.getY(1)
+        return hypot(dx, dy)
     }
 
     override fun onPause() {
