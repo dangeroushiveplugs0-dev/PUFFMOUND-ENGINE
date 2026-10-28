@@ -26,3 +26,28 @@ Java_com_spank3d_MainActivity_nativeDraw(JNIEnv*, jobject, jfloat elapsed_second
     g_renderer.draw_debug_cube(elapsed_seconds * 0.8F);
     g_renderer.end_frame();
 }
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_spank3d_MainActivity_nativeCameraOrbit(JNIEnv*, jobject, jfloat dx, jfloat dy) {
+    g_renderer.camera_orbit(dx, dy);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_spank3d_MainActivity_nativeCameraPan(JNIEnv*, jobject, jfloat dx, jfloat dy) {
+    g_renderer.camera_pan(dx, dy);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_spank3d_MainActivity_nativeCameraZoom(JNIEnv*, jobject, jfloat scale) {
+    g_renderer.camera_zoom(scale);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_spank3d_MainActivity_nativeCameraToggleProjection(JNIEnv*, jobject) {
+    g_renderer.camera_toggle_projection();
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_spank3d_MainActivity_nativeCameraReset(JNIEnv*, jobject) {
+    g_renderer.camera_reset();
+}
