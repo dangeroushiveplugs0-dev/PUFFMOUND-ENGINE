@@ -15,17 +15,19 @@
 - **Environment maps and reflection probes** provide environment reflections and image-based lighting (IBL) for PBR materials. Probe placement, blending, and update cost must be considered for mobile GPUs.
 - **Dynamic direct lighting is a separate system.** Scene lights contribute direct illumination; probes/environment maps provide environment lighting and reflections. MatCap remains a viewport-shading mode rather than pretending to be physically lit PBR.
 
-## Current milestone: first draw call
-The Android OpenGL ES backend now has an end-to-end debug-triangle path:
-- Compile and link a GLSL ES 3.00 vertex/fragment shader program.
-- Upload interleaved position/color vertex data into a VBO and configure a VAO.
-- Draw the triangle through `GlesRenderer::draw_debug_triangle()`.
-- Call `GlesRenderer::shutdown()` while the EGL context used to create the resources is still current.
+## Current milestone: Android triangle preview
+The Android host now uses `GLSurfaceView` with an OpenGL ES 3 context and calls the native C++ renderer through JNI. The renderer:
+- Compiles and links GLSL ES 3.00 vertex/fragment shaders.
+- Uploads interleaved position/color vertex data into a VBO and configures a VAO.
+- Draws a test triangle with `GlesRenderer::draw_debug_triangle()`.
+- Reports shader compilation/link errors to stderr.
+- Expects the host to create and own the EGL context and perform the buffer swap.
+- Requires `GlesRenderer::shutdown()` to be called only while the context that owns its GL objects is current.
 
-The host application is responsible for creating/making current the EGL context, calling `initialize()`, setting the surface size through `resize()`, and performing the EGL buffer swap after `end_frame()`. This repository still does **not** include the Android host or a packaged APK, so a visible on-device demo is not claimed yet.
+The Android APK is built by GitHub Actions and uploaded as the `spank3d-debug-apk` artifact. This is an early rendering test app, not yet a 3D editor, and the triangle has not been confirmed on a physical device.
 
 ## Next rendering milestones
-1. Add an Android host/surface lifecycle and verify the triangle on a real device.
+1. Verify the APK and triangle on a real Android device, then handle lifecycle/context recreation robustly.
 2. Add camera transforms and depth-tested 3D mesh drawing.
 3. Implement MatCap sampling as the default viewport material mode.
 4. Add PBR material inputs, direct dynamic lights, and environment-map/reflection-probe IBL incrementally.
