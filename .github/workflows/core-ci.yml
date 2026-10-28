@@ -1,0 +1,19 @@
+name: Spank3d Core CI
+
+on:
+  push:
+    branches: [master, render-foundation]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build -DSPANK3D_BUILD_TESTS=ON
+      - name: Build
+        run: cmake --build build --parallel 2
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
