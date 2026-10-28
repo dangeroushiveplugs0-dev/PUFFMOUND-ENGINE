@@ -248,7 +248,7 @@ void GlesRenderer::camera_orbit(float delta_x, float delta_y) noexcept {
 }
 
 void GlesRenderer::camera_pan(float delta_x, float delta_y) noexcept {
-    const float scale = camera_distance_ * 0.0022F;
+    const float scale = camera_distance_ * 1.5F;
     const float c = std::cos(camera_yaw_);
     const float s = std::sin(camera_yaw_);
     camera_target_x_ -= (delta_x * c) * scale;
