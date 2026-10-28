@@ -15,22 +15,22 @@
 - **Environment maps and reflection probes** provide environment reflections and image-based lighting (IBL) for PBR materials. Probe placement, blending, and update cost must be considered for mobile GPUs.
 - **Dynamic direct lighting is a separate system.** Scene lights contribute direct illumination; probes/environment maps provide environment lighting and reflections. MatCap remains a viewport-shading mode rather than pretending to be physically lit PBR.
 
-## Current milestone: Android triangle preview
-The Android host now uses `GLSurfaceView` with an OpenGL ES 3 context and calls the native C++ renderer through JNI. The renderer:
-- Compiles and links GLSL ES 3.00 vertex/fragment shaders.
-- Uploads interleaved position/color vertex data into a VBO and configures a VAO.
-- Draws a test triangle with `GlesRenderer::draw_debug_triangle()`.
+## Current milestone: animated 3D cube preview
+The Android host uses `GLSurfaceView` with an OpenGL ES 3 context and calls the native C++ renderer through JNI. The renderer now:
+- Compiles and links GLSL ES 3.00 shaders with an MVP matrix uniform.
+- Uploads a 36-vertex cube mesh into a VBO and configures a VAO.
+- Applies model rotation, a perspective projection, a camera translation, and depth testing.
+- Animates the cube using elapsed time passed from the Android host.
 - Reports shader compilation/link errors to stderr.
 - Expects the host to create and own the EGL context and perform the buffer swap.
-- Requires `GlesRenderer::shutdown()` to be called only while the context that owns its GL objects is current.
 
-The Android APK is built by GitHub Actions and uploaded as the `spank3d-debug-apk` artifact. This is an early rendering test app, not yet a 3D editor, and the triangle has not been confirmed on a physical device.
+The APK builds in GitHub Actions and is uploaded as the `spank3d-debug-apk` artifact. This is a rendering test app, not yet a 3D editor. The cube change needs to pass CI and be checked on the phone before it is considered verified.
 
 ## Next rendering milestones
-1. Verify the APK and triangle on a real Android device, then handle lifecycle/context recreation robustly.
-2. Add camera transforms and depth-tested 3D mesh drawing.
-3. Implement MatCap sampling as the default viewport material mode.
-4. Add PBR material inputs, direct dynamic lights, and environment-map/reflection-probe IBL incrementally.
+1. Verify the animated cube on a real Android device and harden lifecycle/context recreation.
+2. Replace per-face debug colors with the default MatCap viewport material.
+3. Add reusable mesh, camera, and material interfaces instead of keeping the demo mesh inside the GLES backend.
+4. Add PBR material inputs, dynamic direct lights, and environment-map/reflection-probe IBL incrementally.
 
 ## Build core and test
 Portable core:
