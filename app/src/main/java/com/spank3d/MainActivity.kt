@@ -67,55 +67,116 @@ class MainActivity : Activity() {
             renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
             var previousX = 0f
             var previousY = 0f
-            var previousPinchDistance = 0f
-            var previousMidX = 0f
-            var previousMidY = 0f
+            var previousPointerCount = 0
+            var previousSpread = 0f
+            var previousCentroidX = 0f
+            var previousCentroidY = 0f
+
+            fun rebaseGesture(event: MotionEvent, excludedPointer: Int = -1) {
+                val count = event.pointerCount - if (excludedPointer >= 0) 1 else 0
+                if (count <= 0) {
+                    previousPointerCount = 0
+                    previousSpread = 0f
+                    return
+                }
+                var sumX = 0f
+                var sumY = 0f
+                for (i in 0 until event.pointerCount) {
+                    if (i == excludedPointer) continue
+                    sumX += event.getX(i)
+                    sumY += event.getY(i)
+                }
+                previousCentroidX = sumX / count
+                previousCentroidY = sumY / count
+                var squaredDistanceSum = 0f
+                for (i in 0 until event.pointerCount) {
+                    if (i == excludedPointer) continue
+                    val dx = event.getX(i) - previousCentroidX
+                    val dy = event.getY(i) - previousCentroidY
+                    squaredDistanceSum += dx * dx + dy * dy
+                }
+                previousSpread = kotlin.math.sqrt(squaredDistanceSum / count)
+                if (count == 1) {
+                    for (i in 0 until event.pointerCount) {
+                        if (i != excludedPointer) {
+                            previousX = event.getX(i)
+                            previousY = event.getY(i)
+                            break
+                        }
+                    }
+                }
+                previousPointerCount = count
+            }
+
             setOnTouchListener { _, event ->
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
-                        previousX = event.x
-                        previousY = event.y
-                        if (event.pointerCount >= 2) {
-                            previousPinchDistance = pointerDistance(event)
-                            previousMidX = (event.getX(0) + event.getX(1)) * 0.5f
-                            previousMidY = (event.getY(0) + event.getY(1)) * 0.5f
-                        }
+                        // A finger-count change starts a fresh gesture baseline, preventing jumps.
+                        rebaseGesture(event)
                         true
                     }
                     MotionEvent.ACTION_MOVE -> {
-                        if (event.pointerCount >= 2) {
-                            val distance = pointerDistance(event)
-                            val midX = (event.getX(0) + event.getX(1)) * 0.5f
-                            val midY = (event.getY(0) + event.getY(1)) * 0.5f
-                            if (previousPinchDistance > 0f && distance > 0f) {
-                                val scale = distance / previousPinchDistance
-                                queueEvent { nativeCameraZoom(scale) }
+                        val count = event.pointerCount
+                        if (count != previousPointerCount) {
+                            rebaseGesture(event)
+                            true
+                        } else if (count == 1) {
+                            val x = event.getX(0)
+                            val y = event.getY(0)
+                            val dx = (x - previousX) / width.coerceAtLeast(1)
+                            val dy = (y - previousY) / height.coerceAtLeast(1)
+                            if (dx != 0f || dy != 0f) {
+                                queueEvent { nativeCameraOrbit(dx * 240f, dy * 240f) }
                             }
-                            val panX = (midX - previousMidX) / height.coerceAtLeast(1)
-                            val panY = (midY - previousMidY) / height.coerceAtLeast(1)
-                            if (panX != 0f || panY != 0f) {
-                                queueEvent { nativeCameraPan(panX * 2.2f, panY * 2.2f) }
-                            }
-                            previousPinchDistance = distance
-                            previousMidX = midX
-                            previousMidY = midY
+                            previousX = x
+                            previousY = y
+                            true
                         } else {
-                            val dx = (event.x - previousX) / width.coerceAtLeast(1)
-                            val dy = (event.y - previousY) / height.coerceAtLeast(1)
-                            queueEvent { nativeCameraOrbit(dx * 240f, dy * 240f) }
+                            // Two or more fingers: centroid pans while spread pinch-zooms.
+                            var sumX = 0f
+                            var sumY = 0f
+                            for (i in 0 until count) {
+                                sumX += event.getX(i)
+                                sumY += event.getY(i)
+                            }
+                            val centroidX = sumX / count
+                            val centroidY = sumY / count
+                            var squaredDistanceSum = 0f
+                            for (i in 0 until count) {
+                                val dx = event.getX(i) - centroidX
+                                val dy = event.getY(i) - centroidY
+                                squaredDistanceSum += dx * dx + dy * dy
+                            }
+                            val spread = kotlin.math.sqrt(squaredDistanceSum / count)
+                            val panX = (centroidX - previousCentroidX) / width.coerceAtLeast(1)
+                            val panY = (centroidY - previousCentroidY) / height.coerceAtLeast(1)
+                            val scale = if (previousSpread > 1f && spread > 1f) {
+                                spread / previousSpread
+                            } else {
+                                1f
+                            }
+                            if (panX != 0f || panY != 0f || scale != 1f) {
+                                queueEvent {
+                                    if (scale != 1f) nativeCameraZoom(scale)
+                                    if (panX != 0f || panY != 0f) {
+                                        nativeCameraPan(panX * 2.2f, panY * 2.2f)
+                                    }
+                                }
+                            }
+                            previousCentroidX = centroidX
+                            previousCentroidY = centroidY
+                            previousSpread = spread
+                            true
                         }
-                        previousX = event.x
-                        previousY = event.y
-                        true
                     }
                     MotionEvent.ACTION_POINTER_UP -> {
-                        previousPinchDistance = 0f
-                        previousX = event.x
-                        previousY = event.y
+                        // Exclude the lifted pointer so the remaining fingers continue smoothly.
+                        rebaseGesture(event, event.actionIndex)
                         true
                     }
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                        previousPinchDistance = 0f
+                        previousPointerCount = 0
+                        previousSpread = 0f
                         true
                     }
                     else -> true
