@@ -4,6 +4,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdio>
 
 namespace spank3d::render {
 namespace {
@@ -51,6 +52,11 @@ GLuint compile_shader(GLenum type, const char* source) {
     GLint compiled = GL_FALSE;
     glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled);
     if (compiled != GL_TRUE) {
+        std::array<GLchar, 1024> log{};
+        GLsizei length = 0;
+        glGetShaderInfoLog(shader, static_cast<GLsizei>(log.size()), &length, log.data());
+        std::fprintf(stderr, "Spank3d: GLSL shader compilation failed: %.*s\\n",
+                     static_cast<int>(length), log.data());
         glDeleteShader(shader);
         return 0;
     }
@@ -84,6 +90,11 @@ GLuint create_triangle_program() {
     glDeleteShader(fragment);
 
     if (linked != GL_TRUE) {
+        std::array<GLchar, 1024> log{};
+        GLsizei length = 0;
+        glGetProgramInfoLog(program, static_cast<GLsizei>(log.size()), &length, log.data());
+        std::fprintf(stderr, "Spank3d: GLSL program link failed: %.*s\\n",
+                     static_cast<int>(length), log.data());
         glDeleteProgram(program);
         return 0;
     }
@@ -96,6 +107,8 @@ bool GlesRenderer::initialize() {
     // Android must provide a current EGL context before this is called.
     if (glGetString(GL_VERSION) == nullptr) return false;
 
+    // Ignore stale errors left by the host before we attribute errors to this setup.
+    while (glGetError() != GL_NO_ERROR) {}
     shutdown();
     triangle_program_ = create_triangle_program();
     if (triangle_program_ == 0) {
