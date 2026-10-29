@@ -1,6 +1,6 @@
-# Spank3d
+# PUFFMOUND-ENGINE
 
-**Spank3d** is a mobile-first, 3D-first rendering engine in active development.
+**PUFFMOUND-ENGINE** is a mobile-first, 3D-first rendering engine in active development.
 
 ## Direction
 - **C++**: performance-critical engine, rendering, math, and resource systems.
