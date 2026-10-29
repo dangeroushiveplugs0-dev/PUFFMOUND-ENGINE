@@ -48,7 +48,7 @@ const PMPluginDescriptor* test_plugin_descriptor(uint32_t requested_abi) {
 
 bool check(bool condition, const char* message) {
     if (!condition) {
-        std::cerr << message << '\\n';
+        std::cerr << message << '\n';
     }
     return condition;
 }
@@ -103,18 +103,18 @@ int main() {
     const auto sum = a + b;
     const auto diff = a - b;
     if (!near(sum.x, 3.0F) || !near(sum.y, 1.0F) || !near(sum.z, 7.0F)) {
-        std::cerr << "Vec3 addition failed\\n";
+        std::cerr << "Vec3 addition failed\n";
         return EXIT_FAILURE;
     }
     if (!near(diff.x, -1.0F) || !near(diff.y, 3.0F) || !near(diff.z, -1.0F)) {
-        std::cerr << "Vec3 subtraction failed\\n";
+        std::cerr << "Vec3 subtraction failed\n";
         return EXIT_FAILURE;
     }
     if (!near(a.length(), std::sqrt(14.0F))) {
-        std::cerr << "Vec3 length failed\\n";
+        std::cerr << "Vec3 length failed\n";
         return EXIT_FAILURE;
     }
 
-    std::cout << "PUFFMOUND core and plugin ABI tests passed\\n";
+    std::cout << "PUFFMOUND core and plugin ABI tests passed\n";
     return EXIT_SUCCESS;
 }
