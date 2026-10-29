@@ -1,5 +1,6 @@
 #include "spank3d/math/vec3.hpp"
 #include "puffmound/engine_plugin_api.h"
+#include "puffmound/frame_callback_registry.hpp"
 
 #include <cmath>
 #include <cstdlib>
@@ -19,9 +20,7 @@ PMCallbackToken registered_token = 0;
 PMCallbackToken next_token = 1;
 
 void test_log(void*, PMLogLevel, const char* message) {
-    if (message != nullptr) {
-        ++logged_messages;
-    }
+    if (message != nullptr) ++logged_messages;
 }
 
 PMStatus test_plugin_initialize(const PMEngineHost* host) {
@@ -29,16 +28,14 @@ PMStatus test_plugin_initialize(const PMEngineHost* host) {
         return PM_STATUS_INVALID_ARGUMENT;
     }
     ++initialize_calls;
-    if (host->log != nullptr) {
-        host->log(host->user_data, PM_LOG_INFO, "test plugin initialized");
-    }
+    if (host->log != nullptr) host->log(host->user_data, PM_LOG_INFO, "test plugin initialized");
     return PM_STATUS_OK;
 }
 
 void test_plugin_shutdown() { ++shutdown_calls; }
 
-PMStatus register_frame_callback(void*, PMFrameCallbackFn callback,
-                                 void* callback_user_data, PMCallbackToken* out_token) {
+PMStatus register_mock_callback(void*, PMFrameCallbackFn callback,
+                                void* callback_user_data, PMCallbackToken* out_token) {
     if (callback == nullptr || out_token == nullptr || registered_callback != nullptr) {
         return PM_STATUS_INVALID_ARGUMENT;
     }
@@ -49,7 +46,7 @@ PMStatus register_frame_callback(void*, PMFrameCallbackFn callback,
     return PM_STATUS_OK;
 }
 
-PMStatus unregister_frame_callback(void*, PMCallbackToken token) {
+PMStatus unregister_mock_callback(void*, PMCallbackToken token) {
     if (registered_callback == nullptr || token == 0 || token != registered_token) {
         return PM_STATUS_INVALID_ARGUMENT;
     }
@@ -69,25 +66,89 @@ PMStatus test_frame_callback(void* user_data, const PMFrameContext* frame) {
     return PM_STATUS_OK;
 }
 
+struct RegistryCallbackState {
+    puffmound::FrameCallbackRegistry* registry;
+    PMCallbackToken token = 0;
+    int calls = 0;
+    bool unregister_self = false;
+    PMStatus return_status = PM_STATUS_OK;
+};
+
+PMStatus registry_callback(void* raw_state, const PMFrameContext*) {
+    auto* state = static_cast<RegistryCallbackState*>(raw_state);
+    if (state == nullptr) return PM_STATUS_INVALID_ARGUMENT;
+    ++state->calls;
+    if (state->unregister_self) {
+        const PMStatus status = state->registry->unregister_callback(state->token);
+        if (status != PM_STATUS_OK) return status;
+    }
+    return state->return_status;
+}
+
 const PMPluginDescriptor* test_plugin_descriptor(uint32_t requested_abi) {
     static const PMPluginDescriptor descriptor = {
-        sizeof(PMPluginDescriptor),
-        PM_PLUGIN_ABI_MAJOR,
-        "org.puffmound.tests.lifecycle",
-        {1u, 0u, 0u},
-        PM_ENGINE_API_MAJOR,
-        PM_ENGINE_API_MINOR,
-        test_plugin_initialize,
-        test_plugin_shutdown
+        sizeof(PMPluginDescriptor), PM_PLUGIN_ABI_MAJOR,
+        "org.puffmound.tests.lifecycle", {1u, 0u, 0u},
+        PM_ENGINE_API_MAJOR, PM_ENGINE_API_MINOR,
+        test_plugin_initialize, test_plugin_shutdown
     };
     return requested_abi == PM_PLUGIN_ABI_MAJOR ? &descriptor : nullptr;
 }
 
 bool check(bool condition, const char* message) {
-    if (!condition) {
-        std::cerr << message << '\n';
-    }
+    if (!condition) std::cerr << message << '\n';
     return condition;
+}
+
+bool test_real_registry() {
+    puffmound::FrameCallbackRegistry registry;
+    PMCallbackToken invalid_token = 0;
+    if (!check(registry.register_callback(nullptr, nullptr, &invalid_token) ==
+                   PM_STATUS_INVALID_ARGUMENT,
+               "Registry accepted a null callback")) return false;
+    if (!check(registry.register_callback(registry_callback, nullptr, nullptr) ==
+                   PM_STATUS_INVALID_ARGUMENT,
+               "Registry accepted a null output token")) return false;
+
+    RegistryCallbackState first{&registry};
+    RegistryCallbackState self_removing{&registry};
+    self_removing.unregister_self = true;
+    RegistryCallbackState failing{&registry};
+    failing.return_status = PM_STATUS_INTERNAL_ERROR;
+
+    PMCallbackToken first_token = 0;
+    PMCallbackToken self_token = 0;
+    PMCallbackToken failing_token = 0;
+    if (!check(registry.register_callback(registry_callback, &first, &first_token) == PM_STATUS_OK,
+               "Registry failed to add first callback")) return false;
+    self_removing.token = 0;
+    if (!check(registry.register_callback(registry_callback, &self_removing, &self_token) == PM_STATUS_OK,
+               "Registry failed to add self-removing callback")) return false;
+    self_removing.token = self_token;
+    if (!check(registry.register_callback(registry_callback, &failing, &failing_token) == PM_STATUS_OK,
+               "Registry failed to add failing callback")) return false;
+    if (!check(registry.size() == 3, "Registry size did not reflect registrations")) return false;
+
+    const PMFrameContext frame{sizeof(PMFrameContext), 3u, 1.0 / 60.0, 0.05};
+    if (!check(registry.dispatch(frame) == PM_STATUS_INTERNAL_ERROR,
+               "Registry did not propagate callback failure")) return false;
+    if (!check(first.calls == 1 && self_removing.calls == 1 && failing.calls == 1,
+               "Registry did not dispatch all callbacks exactly once")) return false;
+    if (!check(registry.size() == 2, "Self-unregistered callback was not removed")) return false;
+
+    if (!check(registry.unregister_callback(self_token) == PM_STATUS_INVALID_ARGUMENT,
+               "Registry accepted duplicate unregistration")) return false;
+    if (!check(registry.unregister_callback(first_token) == PM_STATUS_OK,
+               "Registry failed to remove callback by token")) return false;
+    if (!check(registry.unregister_callback(failing_token) == PM_STATUS_OK,
+               "Registry failed to remove failing callback")) return false;
+    if (!check(registry.size() == 0, "Registry retained callbacks after removal")) return false;
+    if (!check(registry.dispatch(frame) == PM_STATUS_OK,
+               "Empty registry dispatch should succeed")) return false;
+
+    const PMFrameContext invalid_frame{sizeof(PMFrameContext), 4u, -0.1, 0.1};
+    return check(registry.dispatch(invalid_frame) == PM_STATUS_INVALID_ARGUMENT,
+                 "Registry accepted invalid frame timing");
 }
 }
 
@@ -122,42 +183,37 @@ int main() {
                "Test plugin's required engine API was rejected")) return EXIT_FAILURE;
 
     PMEngineHost host = {
-        sizeof(PMEngineHost),
-        PM_ENGINE_API_MAJOR,
-        PM_ENGINE_API_MINOR,
-        nullptr,
-        test_log,
-        register_frame_callback,
-        unregister_frame_callback
+        sizeof(PMEngineHost), PM_ENGINE_API_MAJOR, PM_ENGINE_API_MINOR,
+        nullptr, test_log, register_mock_callback, unregister_mock_callback
     };
     if (!check(descriptor->initialize(&host) == PM_STATUS_OK,
                "Plugin initialization callback failed")) return EXIT_FAILURE;
     if (!check(initialize_calls == 1 && logged_messages == 1,
-               "Plugin initialization did not use the host logging service")) return EXIT_FAILURE;
+               "Plugin initialization did not use host logging")) return EXIT_FAILURE;
 
     int plugin_state = 42;
     PMCallbackToken callback_token = 0;
     if (!check(host.register_frame_callback(host.user_data, test_frame_callback,
                                             &plugin_state, &callback_token) == PM_STATUS_OK,
-               "Host rejected a valid frame callback")) return EXIT_FAILURE;
+               "Mock host rejected valid frame callback")) return EXIT_FAILURE;
     if (!check(callback_token != 0 && registered_callback == test_frame_callback &&
                    registered_callback_user_data == &plugin_state,
-               "Registered callback was not retained by the mock host")) return EXIT_FAILURE;
-
+               "Mock host did not retain callback")) return EXIT_FAILURE;
     const PMFrameContext frame = {sizeof(PMFrameContext), 17u, 1.0 / 60.0, 0.5};
     if (!check(registered_callback(registered_callback_user_data, &frame) == PM_STATUS_OK &&
                    frame_calls == 1,
-               "Frame callback did not receive valid timing context")) return EXIT_FAILURE;
+               "Mock callback did not receive valid frame timing")) return EXIT_FAILURE;
     if (!check(host.unregister_frame_callback(host.user_data, callback_token) == PM_STATUS_OK,
-               "Host failed to unregister a valid frame callback")) return EXIT_FAILURE;
+               "Mock host failed to unregister callback")) return EXIT_FAILURE;
     if (!check(registered_callback == nullptr,
-               "Unregistered callback remained active")) return EXIT_FAILURE;
+               "Mock host retained unregistered callback")) return EXIT_FAILURE;
     if (!check(host.unregister_frame_callback(host.user_data, callback_token) ==
                    PM_STATUS_INVALID_ARGUMENT,
-               "Host accepted an invalid duplicate unregister")) return EXIT_FAILURE;
-
+               "Mock host accepted duplicate unregistration")) return EXIT_FAILURE;
     descriptor->shutdown();
     if (!check(shutdown_calls == 1, "Plugin shutdown callback was not invoked")) return EXIT_FAILURE;
+
+    if (!test_real_registry()) return EXIT_FAILURE;
 
     using spank3d::math::Vec3;
     const Vec3 a{1.0F, 2.0F, 3.0F};
