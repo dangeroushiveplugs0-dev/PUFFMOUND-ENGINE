@@ -2,6 +2,8 @@
 
 Status: design contract for the early development stage. This document describes the intended package boundary; it does not claim that package installation or dynamic loading is implemented yet.
 
+For the detailed native-code compatibility requirements, base-engine extension points, validation rules, and incremental implementation order, see [Native Plugin Compatibility Rules](NATIVE_PLUGIN_COMPATIBILITY.md).
+
 ## 1. Two separate extension types
 
 The modeling and animation application is the host. It uses one compatible engine package and may load zero or more compatible plugin packages.
