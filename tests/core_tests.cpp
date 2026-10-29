@@ -20,8 +20,13 @@ void* registered_callback_user_data = nullptr;
 PMCallbackToken registered_token = 0;
 PMCallbackToken next_token = 1;
 
-void test_log(void*, PMLogLevel, const char* message) {
-    if (message != nullptr) ++logged_messages;
+void test_log(void* user_data, PMLogLevel, const char* message) {
+    if (message == nullptr) return;
+    if (user_data != nullptr) {
+        ++*static_cast<int*>(user_data);
+    } else {
+        ++logged_messages;
+    }
 }
 
 PMStatus test_plugin_initialize(const PMEngineHost* host) {
