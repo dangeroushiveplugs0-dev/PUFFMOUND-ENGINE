@@ -1,6 +1,7 @@
 #include "spank3d/math/vec3.hpp"
 #include "puffmound/engine_plugin_api.h"
 #include "puffmound/frame_callback_registry.hpp"
+#include "puffmound/plugin_host_services.hpp"
 
 #include <cmath>
 #include <cstdlib>
@@ -98,6 +99,45 @@ const PMPluginDescriptor* test_plugin_descriptor(uint32_t requested_abi) {
 bool check(bool condition, const char* message) {
     if (!condition) std::cerr << message << '\n';
     return condition;
+}
+
+
+bool test_plugin_host_services() {
+    int log_count = 0;
+    puffmound::PluginHostServices services(test_log, &log_count);
+    const PMEngineHost* host = services.host();
+    if (!check(host != nullptr && host->struct_size >= sizeof(PMEngineHost),
+               "Plugin host service table is incomplete")) return false;
+    if (!check(host->api_major == PM_ENGINE_API_MAJOR &&
+                   host->api_minor == PM_ENGINE_API_MINOR &&
+                   host->user_data != nullptr &&
+                   host->register_frame_callback != nullptr &&
+                   host->unregister_frame_callback != nullptr,
+               "Plugin host service table metadata or callbacks are invalid")) return false;
+
+    RegistryCallbackState state{nullptr};
+    PMCallbackToken token = 0;
+    if (!check(host->register_frame_callback(host->user_data, registry_callback,
+                                              &state, &token) == PM_STATUS_OK,
+               "Host adapter failed to register callback")) return false;
+    if (!check(token != 0 && services.callback_count() == 1,
+               "Host adapter did not retain registered callback")) return false;
+
+    const PMFrameContext frame{sizeof(PMFrameContext), 9u, 1.0 / 60.0, 0.15};
+    if (!check(services.dispatch_frame(frame) == PM_STATUS_OK && state.calls == 1,
+               "Host adapter did not dispatch registered callback")) return false;
+    if (!check(host->unregister_frame_callback(host->user_data, token) == PM_STATUS_OK,
+               "Host adapter failed to unregister callback")) return false;
+    if (!check(services.callback_count() == 0 &&
+                   services.dispatch_frame(frame) == PM_STATUS_OK && state.calls == 1,
+               "Unregistered callback was still dispatched")) return false;
+    if (!check(host->unregister_frame_callback(host->user_data, token) ==
+                   PM_STATUS_INVALID_ARGUMENT,
+               "Host adapter accepted duplicate unregistration")) return false;
+
+    host->log(host->user_data, PM_LOG_INFO, "adapter logging bridge");
+    return check(log_count == 1,
+                 "Host adapter did not forward logging with separate user data");
 }
 
 bool test_real_registry() {
@@ -214,6 +254,7 @@ int main() {
     if (!check(shutdown_calls == 1, "Plugin shutdown callback was not invoked")) return EXIT_FAILURE;
 
     if (!test_real_registry()) return EXIT_FAILURE;
+    if (!test_plugin_host_services()) return EXIT_FAILURE;
 
     using spank3d::math::Vec3;
     const Vec3 a{1.0F, 2.0F, 3.0F};
