@@ -12,6 +12,11 @@ bool near(float a, float b) { return std::fabs(a - b) < 1.0e-5F; }
 int logged_messages = 0;
 int initialize_calls = 0;
 int shutdown_calls = 0;
+int frame_calls = 0;
+PMFrameCallbackFn registered_callback = nullptr;
+void* registered_callback_user_data = nullptr;
+PMCallbackToken registered_token = 0;
+PMCallbackToken next_token = 1;
 
 void test_log(void*, PMLogLevel, const char* message) {
     if (message != nullptr) {
@@ -31,6 +36,38 @@ PMStatus test_plugin_initialize(const PMEngineHost* host) {
 }
 
 void test_plugin_shutdown() { ++shutdown_calls; }
+
+PMStatus register_frame_callback(void*, PMFrameCallbackFn callback,
+                                 void* callback_user_data, PMCallbackToken* out_token) {
+    if (callback == nullptr || out_token == nullptr || registered_callback != nullptr) {
+        return PM_STATUS_INVALID_ARGUMENT;
+    }
+    registered_callback = callback;
+    registered_callback_user_data = callback_user_data;
+    registered_token = next_token++;
+    *out_token = registered_token;
+    return PM_STATUS_OK;
+}
+
+PMStatus unregister_frame_callback(void*, PMCallbackToken token) {
+    if (registered_callback == nullptr || token == 0 || token != registered_token) {
+        return PM_STATUS_INVALID_ARGUMENT;
+    }
+    registered_callback = nullptr;
+    registered_callback_user_data = nullptr;
+    registered_token = 0;
+    return PM_STATUS_OK;
+}
+
+PMStatus test_frame_callback(void* user_data, const PMFrameContext* frame) {
+    if (user_data == nullptr || frame == nullptr ||
+        frame->struct_size < sizeof(PMFrameContext) ||
+        frame->delta_seconds <= 0.0 || frame->elapsed_seconds < frame->delta_seconds) {
+        return PM_STATUS_INVALID_ARGUMENT;
+    }
+    ++frame_calls;
+    return PM_STATUS_OK;
+}
 
 const PMPluginDescriptor* test_plugin_descriptor(uint32_t requested_abi) {
     static const PMPluginDescriptor descriptor = {
@@ -56,6 +93,7 @@ bool check(bool condition, const char* message) {
 
 int main() {
     static_assert(PM_ENGINE_API_MAJOR == 1u);
+    static_assert(PM_ENGINE_API_MINOR == 1u);
     static_assert(PM_PLUGIN_ABI_MAJOR == 1u);
 
     if (!check(pm_engine_api_is_compatible(1u, 2u, 1u, 1u),
@@ -88,12 +126,36 @@ int main() {
         PM_ENGINE_API_MAJOR,
         PM_ENGINE_API_MINOR,
         nullptr,
-        test_log
+        test_log,
+        register_frame_callback,
+        unregister_frame_callback
     };
     if (!check(descriptor->initialize(&host) == PM_STATUS_OK,
                "Plugin initialization callback failed")) return EXIT_FAILURE;
     if (!check(initialize_calls == 1 && logged_messages == 1,
                "Plugin initialization did not use the host logging service")) return EXIT_FAILURE;
+
+    int plugin_state = 42;
+    PMCallbackToken callback_token = 0;
+    if (!check(host.register_frame_callback(host.user_data, test_frame_callback,
+                                            &plugin_state, &callback_token) == PM_STATUS_OK,
+               "Host rejected a valid frame callback")) return EXIT_FAILURE;
+    if (!check(callback_token != 0 && registered_callback == test_frame_callback &&
+                   registered_callback_user_data == &plugin_state,
+               "Registered callback was not retained by the mock host")) return EXIT_FAILURE;
+
+    const PMFrameContext frame = {sizeof(PMFrameContext), 17u, 1.0 / 60.0, 0.5};
+    if (!check(registered_callback(registered_callback_user_data, &frame) == PM_STATUS_OK &&
+                   frame_calls == 1,
+               "Frame callback did not receive valid timing context")) return EXIT_FAILURE;
+    if (!check(host.unregister_frame_callback(host.user_data, callback_token) == PM_STATUS_OK,
+               "Host failed to unregister a valid frame callback")) return EXIT_FAILURE;
+    if (!check(registered_callback == nullptr,
+               "Unregistered callback remained active")) return EXIT_FAILURE;
+    if (!check(host.unregister_frame_callback(host.user_data, callback_token) ==
+                   PM_STATUS_INVALID_ARGUMENT,
+               "Host accepted an invalid duplicate unregister")) return EXIT_FAILURE;
+
     descriptor->shutdown();
     if (!check(shutdown_calls == 1, "Plugin shutdown callback was not invoked")) return EXIT_FAILURE;
 
