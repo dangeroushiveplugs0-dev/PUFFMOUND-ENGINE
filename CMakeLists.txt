@@ -8,6 +8,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 add_library(spank3d_core
     src/math/vec3.cpp
+    src/plugin/frame_callback_registry.cpp
 )
 target_include_directories(spank3d_core PUBLIC include)
 target_compile_features(spank3d_core PUBLIC cxx_std_20)
