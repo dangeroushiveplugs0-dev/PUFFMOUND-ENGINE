@@ -18,7 +18,7 @@ The final modeling/animation app is a separate host application. It requires one
 - **Physics baking**: a physics plugin should be able to simulate a scene and bake the result into persistent animation data or a simulation cache for playback and saving.
 - **Test APK**: a temporary development harness for testing engine behavior on Android, not the final modeling/animation app or the engine deliverable.
 
-The proposed package boundary, manifest fields, compatibility checks, Android loading safety, and physics-baking workflow are described in [Engine and Plugin Package Architecture](docs/ENGINE_PLUGIN_ARCHITECTURE.md). This is a design contract for future implementation, not a claim that package installation or plugin loading already works.
+The package model and implementation requirements are documented in [Engine and Plugin Package Architecture](docs/ENGINE_PLUGIN_ARCHITECTURE.md) and [Native Plugin Compatibility Rules](docs/NATIVE_PLUGIN_COMPATIBILITY.md). The first engine must provide versioned lifecycle, scene, timing, rendering, resource, animation, and diagnostics extension points so future native plugins can integrate without redesigning the host app. These are design contracts, not a claim that package installation or plugin loading already works.
 
 ## Material and lighting strategy
 - **MatCap is the default viewport material mode.** It provides readable sculpting/modeling shading without requiring a scene-light setup, with swappable MatCap presets.
@@ -45,7 +45,7 @@ The APK build is a rendering test harness, not yet a 3D editor. The cube and cam
 2. Replace per-face debug colors with the default MatCap viewport material.
 3. Extract reusable mesh, camera, and material interfaces instead of keeping the demo mesh inside the GLES backend.
 4. Add PBR material inputs, dynamic direct lights, and environment-map/reflection-probe IBL incrementally.
-5. Define the stable engine-facing API before adding archive installation or dynamic package loading.
+5. Define and test the versioned native C-compatible engine/plugin ABI, including scene, timing, resource ownership, lifecycle, and rendering-contribution hooks; then validate safe archive handling and Android-compatible native loading.
 
 ## Build core and test
 
