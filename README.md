@@ -20,6 +20,8 @@ The final modeling/animation app is a separate host application. It requires one
 
 The package model and implementation requirements are documented in [Engine and Plugin Package Architecture](docs/ENGINE_PLUGIN_ARCHITECTURE.md) and [Native Plugin Compatibility Rules](docs/NATIVE_PLUGIN_COMPATIBILITY.md). The first engine must provide versioned lifecycle, scene, timing, rendering, resource, animation, and diagnostics extension points so future native plugins can integrate without redesigning the host app. These are design contracts, not a claim that package installation or plugin loading already works.
 
+The initial C-compatible ABI contract is in [engine_plugin_api.h](include/puffmound/engine_plugin_api.h). It currently defines version negotiation, plugin metadata, lifecycle function pointers, and host logging. Core tests cover compatible/incompatible API versions. Scene, timing, resource, and rendering-contribution services remain future work; dynamic loading is not implemented.
+
 ## Material and lighting strategy
 - **MatCap is the default viewport material mode.** It provides readable sculpting/modeling shading without requiring a scene-light setup, with swappable MatCap presets.
 - **PBR is the physically based material path.** Materials will expose base color, metallic, roughness, and optional normal/ambient-occlusion inputs.
